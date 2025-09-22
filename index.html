@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cabine de Fotos</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
- 
   <style>
-    /* Estilos mínimos para garantir visualização */
     body { margin: 0; background: #111; color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     #video, #canvas { max-width: 100vw; max-height: 100vh; display: none; margin: 0 auto; }
     #guideline { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -16,50 +13,129 @@
     #countdown { position: fixed; top: 20px; right: 20px; font-size: 64px; display: none; }
     #message { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.7); padding: 10px 14px; border-radius: 8px; display: none; }
-    #controls { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; }
-    #controls button { font-size: 20px; padding: 12px 14px; border-radius: 10px; border: 0; cursor: pointer; }
-    #controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+   /* CONTROLES: de bottom-right -> top-right */
+#controls {
+  position: fixed;
+  top: 12px;          /* era bottom: 20px */
+  right: 12px;        /* mantemos à direita */
+  bottom: auto;       /* remove fixação inferior */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  z-index: 1000;      /* fica acima do vídeo/canvas */
+}
+
+/* CONTADOR: centralizado no meio da foto/tela */
+#countdown {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;      /* maior e legível no centro */
+  display: none;
+  z-index: 1001;        /* acima dos controles */
+}
+
+/* MENU colapsado das câmeras (detalhes) */
+#controls details.cam-menu {
+  background: rgba(34,34,34,0.9);
+  border: 1px solid #444;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+#controls details.cam-menu summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+#controls details.cam-menu[open] {
+  padding: 10px;
+}
+
+#controls .selects-body {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 6px 10px;
+}
+
+#controls .selects-body label {
+  font-size: 12px;
+  opacity: 0.9;
+  align-self: center;
+}
+
+#controls .selects-body select {
+  background: #222; color: #fff;
+  border: 1px solid #444; border-radius: 8px;
+  padding: 6px 8px; min-width: 220px;
+}
+
+/* REMOVER o antigo posicionamento da .selects */
+.selects { display: none; }  /* ou apague o bloco antigo do HTML */
+
+    .selects { position: fixed; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .selects label { font-size: 14px; opacity: 0.9; }
+    .selects select { background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; padding: 8px; min-width: 220px; }
+    #videoCapture { display: none; }
   </style>
 </head>
 <body>
 
+  <!-- Preview da câmera 1 -->
   <video id="video" autoplay playsinline></video>
+  <!-- Vídeo oculto que recebe a câmera 2 na hora da foto -->
+  <video id="videoCapture" autoplay playsinline muted></video>
+
   <canvas id="canvas"></canvas>
 
-  <!-- Linha guia para proporção 4:5 -->
   <div id="guideline"></div>
-
-  <!-- Timer -->
   <div id="countdown"></div>
-
   <div id="message">Erro ao acessar a câmera. Verifique as configurações.</div>
 
   <div id="controls">
-  <button id="startCamera" title="Iniciar câmera"><i class="fas fa-camera"></i></button>
+  <!-- Menu colapsado das câmeras -->
+  <details class="cam-menu">
+    <summary>
+      <i class="fas fa-gear"></i>
+      Opções de Câmera
+    </summary>
+    <div class="selects-body">
+      <label for="previewSelect">Preview:</label>
+      <select id="previewSelect" title="Escolha a câmera de pré-visualização"></select>
+
+      <label for="captureSelect">Foto:</label>
+      <select id="captureSelect" title="Escolha a câmera para capturar a foto"></select>
+    </div>
+  </details>
+
+  <!-- Controles da foto (no topo direito) -->
+  <button id="startCamera" title="Iniciar câmeras"><i class="fas fa-camera"></i></button>
   <button id="takePortraitPhoto" title="Tirar foto 4:5" disabled><i class="fas fa-camera-retro"></i></button>
-
-  <!-- novo: escolher pasta destino -->
   <button id="chooseFolder" title="Escolher pasta de destino"><i class="fas fa-folder-open"></i></button>
-
-  <!-- salvar direto na pasta local -->
   <button id="uploadPhoto" title="Salvar na pasta" disabled><i class="fas fa-folder"></i></button>
-
-  <!-- opcional: manter download se quiser -->
   <button id="downloadPhoto" title="Baixar" disabled><i class="fas fa-download"></i></button>
-
   <button id="returnToCamera" title="Voltar" style="display:none;"><i class="fas fa-arrow-left"></i></button>
 </div>
+
 
 <script>
   // ========= DOM refs =========
   const startCameraButton = document.getElementById('startCamera');
   const takePortraitPhotoButton = document.getElementById('takePortraitPhoto');
   const downloadPhotoButton = document.getElementById('downloadPhoto');
-  const uploadPhotoButton = document.getElementById('uploadPhoto'); // agora "Salvar na pasta"
+  const uploadPhotoButton = document.getElementById('uploadPhoto');
   const chooseFolderButton = document.getElementById('chooseFolder');
   const returnToCameraButton = document.getElementById('returnToCamera');
 
-  const video = document.getElementById('video');
+  const videoPreview = document.getElementById('video');
+  const videoCaptureEl = document.getElementById('videoCapture');
   const canvas = document.getElementById('canvas');
   const guideline = document.getElementById('guideline');
   const countdown = document.getElementById('countdown');
@@ -67,17 +143,36 @@
   const ctx = canvas.getContext('2d');
   const aspectRatio = 4 / 5;
 
-  // Logos
+  const previewSelect = document.getElementById('previewSelect');
+  const captureSelect = document.getElementById('captureSelect');
+// Altura dos vídeos = altura total da página
+function setCamerasHeightToPage() {
+  const h = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+  [videoPreview, videoCaptureEl].forEach(v => {
+    if (!v) return;
+    v.style.height = h + 'px';
+    v.style.maxHeight = h + 'px';
+    v.style.width = 'auto';
+    v.style.objectFit = 'contain';
+  });
+  // se você usa a guideline, atualize depois de ajustar a altura
+  if (typeof updateGuideline === 'function') updateGuideline(4/5);
+}
+
+  // Logos opcionais
   const topLogoImage = new Image();
   const bottomLogoImage = new Image();
   topLogoImage.src = 'top-logo.png';
   bottomLogoImage.src = 'bottom-logo.png';
 
-  let stream = null;
+  // Streams
+  let previewStream = null;
+  let devicesCache = [];
 
   // File System Access API
   let dirHandle = null;
 
+  // ========= UI helpers =========
   function showMessage(msg, duration = 3000) {
     message.textContent = msg;
     message.style.display = 'block';
@@ -93,23 +188,195 @@
     guideline.style.height = h + 'px';
     guideline.style.display = 'block';
   }
-
   updateGuideline(aspectRatio);
   window.addEventListener('resize', () => updateGuideline(aspectRatio));
 
-  // ========= Camera =========
+  // ========= Câmeras helpers =========
+  function stopStream(stream) {
+    if (!stream) return;
+    stream.getTracks().forEach(t => t.stop());
+  }
+
+  async function enumerateVideoInputs() {
+    const all = await navigator.mediaDevices.enumerateDevices();
+    const inputs = all.filter(d => d.kind === 'videoinput');
+    devicesCache = inputs;
+    console.log('Dispositivos de vídeo:', inputs);
+    return inputs;
+  }
+
+  function fillSelect(selectEl, devices, preselectId) {
+    selectEl.innerHTML = '';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Câmera ${d.deviceId.slice(0,6)}`;
+      if (d.deviceId === preselectId) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function pickDefaultDevices(inputs) {
+    const isVirtual = d => /obs|virtual|snap camera/i.test(d.label);
+    const virtualCam = inputs.find(isVirtual);
+    const nonVirtuals = inputs.filter(d => !isVirtual(d));
+
+    let previewId = virtualCam ? virtualCam.deviceId : inputs[0]?.deviceId;
+    let captureId = nonVirtuals[0]?.deviceId || inputs.find(d => d.deviceId !== previewId)?.deviceId || inputs[0]?.deviceId;
+
+    if (captureId === previewId && inputs[1]) captureId = inputs[1].deviceId;
+    return { previewId, captureId };
+  }
+
+  // Abridor com fallback
+  async function tryOpen(constraints) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (e) {
+      console.warn('getUserMedia falhou:', constraints, e.name, e.constraint);
+      throw e;
+    }
+  }
+
+  // Para preview podemos ser flexíveis
+  async function openVideoFlexible(deviceId) {
+    const tests = [
+      { video: { deviceId: { exact: deviceId } }, audio: false },
+      { video: { deviceId: { ideal: deviceId } }, audio: false },
+      { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+      { video: true, audio: false }, // último recurso: qualquer câmera
+    ];
+    let lastErr = null;
+    for (const c of tests) {
+      try { return await tryOpen(c); } catch (e) {
+        lastErr = e;
+        if (e.name !== 'OverconstrainedError' && e.name !== 'NotReadableError') break;
+      }
+    }
+    throw lastErr;
+  }
+
+  // Para a captura respeitamos o device escolhido
+  async function openVideoStrict(deviceId) {
+    const tests = [
+      { video: { deviceId: { exact: deviceId } }, audio: false },
+      { video: { deviceId: { ideal: deviceId } }, audio: false },
+      { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+    ];
+    let lastErr = null;
+    for (const c of tests) {
+      try { return await tryOpen(c); } catch (e) {
+        lastErr = e;
+        if (e.name !== 'OverconstrainedError' && e.name !== 'NotReadableError') break;
+      }
+    }
+    throw lastErr;
+  }
+
+  async function startPreviewWith(deviceId) {
+    try {
+      stopStream(previewStream);
+      previewStream = await openVideoFlexible(deviceId);
+      videoPreview.srcObject = previewStream;
+      await videoPreview.play();
+videoPreview.addEventListener('loadedmetadata', setCamerasHeightToPage, { once: true });
+
+      videoPreview.style.display = 'block';
+      return true;
+    } catch (e) {
+      console.error('Erro ao iniciar preview', e);
+      showMessage(`Falha no preview: ${e.name}. Tente outra câmera em "Preview".`);
+      return false;
+    }
+  }
+
+  // Apenas testa se a câmera de captura abre
+  async function testCaptureDevice(deviceId) {
+    try {
+      const test = await openVideoStrict(deviceId);
+      stopStream(test);
+      return true;
+    } catch (e) {
+      console.error('Erro no teste da câmera de foto', e);
+      showMessage(`Falha na câmera de foto: ${e.name}. Selecione outra em "Foto".`);
+      return false;
+    }
+  }
+
+  function ensureDifferentDevices() {
+    if (previewSelect.value && captureSelect.value && previewSelect.value === captureSelect.value) {
+      const alt = Array.from(captureSelect.options).find(o => o.value !== previewSelect.value);
+      if (alt) {
+        captureSelect.value = alt.value;
+        testCaptureDevice(alt.value);
+        showMessage('Ajustei "Foto" para uma câmera diferente da de Preview.');
+      } else {
+        showMessage('Selecione câmeras diferentes para Preview e Foto.');
+      }
+    }
+  }
+
+  async function waitForVideoReady(videoEl) {
+    // garante metadata e pelo menos um frame
+    if (!(videoEl.readyState >= 2 && videoEl.videoWidth)) {
+      await new Promise(resolve => {
+        const done = () => resolve();
+        const onMeta = () => { videoEl.removeEventListener('loadedmetadata', onMeta); done(); };
+        videoEl.addEventListener('loadedmetadata', onMeta, { once: true });
+      });
+    }
+    // tenta esperar um frame
+    if ('requestVideoFrameCallback' in videoEl) {
+      await new Promise(resolve => videoEl.requestVideoFrameCallback(() => resolve()));
+    } else {
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+  }
+
+  // ========= Fluxo principal =========
   startCameraButton.addEventListener('click', async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      video.srcObject = stream;
-      video.style.display = 'block';
-      takePortraitPhotoButton.disabled = false;
-      startCameraButton.disabled = true;
-      updateGuideline(aspectRatio);
+      // Pede permissão para liberar rótulos
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(s => s.getTracks().forEach(t => t.stop()))
+        .catch(()=>{});
+
+      const inputs = await enumerateVideoInputs();
+      if (inputs.length === 0) {
+        showMessage('Nenhuma câmera encontrada.');
+        return;
+      }
+
+      const { previewId, captureId } = pickDefaultDevices(inputs);
+      fillSelect(previewSelect, inputs, previewId);
+      fillSelect(captureSelect, inputs, captureId);
+
+      const okPrev = await startPreviewWith(previewId);
+      const okCap = await testCaptureDevice(captureId);
+
+      if (okPrev && okCap) {
+        takePortraitPhotoButton.disabled = false;
+        startCameraButton.disabled = true;
+        updateGuideline(aspectRatio);
+      } else {
+        takePortraitPhotoButton.disabled = true;
+      }
     } catch (err) {
       console.error(err);
       showMessage('Erro ao acessar a câmera. Verifique permissões do navegador.');
     }
+  });
+
+  previewSelect.addEventListener('change', async () => {
+    await startPreviewWith(previewSelect.value);
+    ensureDifferentDevices();
+  });
+
+  captureSelect.addEventListener('change', async () => {
+    await testCaptureDevice(captureSelect.value);
+    ensureDifferentDevices();
   });
 
   function startCountdown(seconds, onFinish) {
@@ -128,7 +395,25 @@
   }
 
   takePortraitPhotoButton.addEventListener('click', () => {
-    startCountdown(3, () => cropPhoto(aspectRatio));
+    startCountdown(3, async () => {
+      const capId = captureSelect.value;
+      try {
+        // Abre a câmera 2 só agora
+        const stream = await openVideoStrict(capId);
+        videoCaptureEl.srcObject = stream;
+        await videoCaptureEl.play();
+        await waitForVideoReady(videoCaptureEl);
+
+        cropPhoto(aspectRatio); // desenha a partir da câmera 2
+
+        // Fecha já a câmera 2 para evitar conflito
+        stopStream(stream);
+        videoCaptureEl.srcObject = null;
+      } catch (e) {
+        console.error('Erro ao capturar', e);
+        showMessage(`Não foi possível capturar: ${e.name}`);
+      }
+    });
   });
 
   function drawLogos() {
@@ -145,38 +430,57 @@
   }
 
   function cropPhoto(ar) {
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    if (!vw || !vh) {
-      showMessage('Erro ao tirar a foto. Tente novamente.');
-      return;
-    }
-
-    const guideW = guideline.offsetWidth;
-    const guideH = guideline.offsetHeight;
-
-    let cw, ch;
-    if (vw / vh > ar) { ch = vh; cw = ch * ar; } else { cw = vw; ch = cw / ar; }
-
-    const x = (vw - cw) / 2;
-    const y = (vh - ch) / 2;
-
-    canvas.width = guideW;
-    canvas.height = guideH;
-
-    ctx.drawImage(video, x, y, cw, ch, 0, 0, guideW, guideH);
-    drawLogos();
-
-    canvas.style.display = 'block';
-    video.style.display = 'none';
-    downloadPhotoButton.disabled = false;
-
-    // só habilita salvar se a pasta já foi escolhida
-    uploadPhotoButton.disabled = !dirHandle;
-
-    takePortraitPhotoButton.disabled = true;
-    returnToCameraButton.style.display = 'inline';
+  const srcVideo = videoCaptureEl;
+  const vw = srcVideo.videoWidth;
+  const vh = srcVideo.videoHeight;
+  if (!vw || !vh) {
+    showMessage('Sem vídeo da câmera de foto. Tente novamente.');
+    return;
   }
+
+  // calcula recorte 4:5 em coordenadas de vídeo (pixels reais)
+  let cw, ch;
+  if (vw / vh > ar) {        // vídeo "mais largo" que 4:5
+    ch = vh;
+    cw = Math.round(ch * ar);
+  } else {                   // vídeo "mais alto" que 4:5
+    cw = vw;
+    ch = Math.round(cw / ar);
+  }
+  const x = Math.floor((vw - cw) / 2);
+  const y = Math.floor((vh - ch) / 2);
+
+  // canvas no TAMANHO REAL do recorte
+  canvas.width  = cw;
+  canvas.height = ch;
+
+  // desliga suavização se houver qualquer upscaling posterior
+  ctx.imageSmoothingEnabled = false;
+
+  // desenha 1:1
+  ctx.drawImage(srcVideo, x, y, cw, ch, 0, 0, cw, ch);
+
+  // agora só ajusta como aparece na tela, sem afetar a qualidade do arquivo
+  const rect = videoPreview.getBoundingClientRect();
+  const guideW = Math.min(rect.width, rect.height * ar);
+  const guideH = guideW / ar;
+  canvas.style.width  = guideW + 'px';
+  canvas.style.height = guideH + 'px';
+
+  drawLogos();
+
+  canvas.style.display = 'block';
+  videoPreview.style.display = 'none';
+  videoCaptureEl.style.display = 'none';
+  guideline.style.display = 'none';
+
+  downloadPhotoButton.disabled = false;
+  uploadPhotoButton.disabled = !dirHandle;
+
+  takePortraitPhotoButton.disabled = true;
+  returnToCameraButton.style.display = 'inline';
+}
+
 
   downloadPhotoButton.addEventListener('click', () => {
     const dataURL = canvas.toDataURL('image/png');
@@ -189,7 +493,7 @@
 
   returnToCameraButton.addEventListener('click', () => {
     canvas.style.display = 'none';
-    video.style.display = 'block';
+    videoPreview.style.display = 'block';
     guideline.style.display = 'block';
     downloadPhotoButton.disabled = true;
     uploadPhotoButton.disabled = !dirHandle;
@@ -215,7 +519,6 @@
         showMessage('Seu navegador não suporta salvar direto na pasta. Use Chrome ou Edge atual em https ou localhost.');
         return;
       }
-      // em alguns navegadores, startIn pode ser ignorado
       dirHandle = await window.showDirectoryPicker({ id: 'CabineDeFotos', mode: 'readwrite', startIn: 'pictures' });
       const ok = await verifyPermission(dirHandle, 'readwrite');
       if (!ok) {
@@ -225,10 +528,9 @@
         return;
       }
       showMessage('Pasta selecionada com sucesso.', 2000);
-      // se já existe uma foto na tela, permite salvar
       if (canvas.style.display === 'block') uploadPhotoButton.disabled = false;
     } catch (err) {
-      if (err && err.name === 'AbortError') return; // usuário cancelou
+      if (err && err.name === 'AbortError') return;
       console.error(err);
       showMessage('Erro ao selecionar a pasta.');
     }
@@ -278,8 +580,12 @@
     }
   }
 
-  // reaproveita o botão de upload como "Salvar na pasta"
   uploadPhotoButton.addEventListener('click', saveCanvasToFolder);
+
+  // Fecha streams ao sair
+  window.addEventListener('beforeunload', () => {
+    stopStream(previewStream);
+  });
 </script>
 
 </body>
